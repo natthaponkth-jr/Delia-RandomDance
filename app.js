@@ -1,320 +1,2124 @@
-// ใส่ URL Web App ที่ได้จาก Google Apps Script ที่นี่
-const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxTHBDk2j--fcL4tnQo5YH8KRlm0SMvjDK6YqKMhkZPk5GCWOXM8g8xeoeQtxw3ns__zA/exec";
+// ==========================================
+// 1. ตั้งค่าพื้นฐาน (Configuration)
+// ==========================================
+const apiURL =
+  "https://script.google.com/macros/s/AKfycbxTHBDk2j--fcL4tnQo5YH8KRlm0SMvjDK6YqKMhkZPk5GCWOXM8g8xeoeQtxw3ns__zA/exec";
 
-// --- Security: Anti-Inspect & Anti-Console ---
+let currentEvents = [];
+let currentSongs = [];
+let activeEvent = null;
+let selectedSongId = null;
+let currentViewId = "calendar";
+let currentOrigin = "K-Pop";
 
-// 1. บล็อกคลิกขวา
-document.addEventListener('contextmenu', function(e) {
-  e.preventDefault();
-});
-
-// 2. บล็อกคีย์ลัดสำหรับเปิด Developer Tools และการดู Source Code
-document.onkeydown = function(e) {
-  // บล็อก F12
-  if(e.keyCode === 123) {
-    return false;
-  }
-  // บล็อก Ctrl+Shift+I (เปิด Inspect)
-  if(e.ctrlKey && e.shiftKey && e.keyCode === 73) { // 'I'
-    return false;
-  }
-  // บล็อก Ctrl+Shift+C (เปิด Inspect Element)
-  if(e.ctrlKey && e.shiftKey && e.keyCode === 67) { // 'C'
-    return false;
-  }
-  // บล็อก Ctrl+Shift+J (เปิด Console)
-  if(e.ctrlKey && e.shiftKey && e.keyCode === 74) { // 'J'
-    return false;
-  }
-  // บล็อก Ctrl+U (เปิดดู View Source)
-  if(e.ctrlKey && e.keyCode === 85) { // 'U'
-    return false;
-  }
+// ==========================================
+// 2. ระบบแปลภาษา (i18n) - ภาษาทางการและสุภาพ
+// ==========================================
+const translations = {
+  th: {
+    welcome: "ยินดีต้อนรับสู่ Delia",
+    welcome_sub: "ร่วมสนุกกับการขอเพลงและโหวตเพลงใน Random Dance ได้เลยค่ะ 💖",
+    google_sub: "เข้าสู่ระบบอย่างปลอดภัยด้วยบัญชี Google ของคุณ",
+    welcome_back: "ยินดีต้อนรับกลับค่ะ คุณ",
+    slide_login: "เลื่อนเพื่อเข้าสู่ระบบ",
+    not_me: "ไม่ใช่ฉัน? (ออกจากระบบ)",
+    login: "เข้าสู่ระบบ",
+    calendar_title: "Event Calendar",
+    calendar_sub:
+      "เลือกวันที่บนปฏิทินเพื่อดูรายละเอียด หรือแอดมินคลิกเพื่อสร้างงาน",
+    song_req_title: "Song Requests",
+    btn_back: "กลับปฏิทิน",
+    btn_add_song: "ขอเพลงใหม่",
+    btn_manage_pl: "จัด Playlist",
+    search_ph: "ค้นหาชื่อเพลง หรือ ศิลปิน...",
+    setlist_title: "Setlist Manager",
+    btn_back_list: "กลับหน้ารายการ",
+    pool: "📦 กองกลาง",
+    hide_pool: "ซ่อนกองกลาง",
+    show_pool: "แสดงกองกลาง",
+    btn_fetch_votes: "ดึงข้อมูลการขอเพลง",
+    btn_add_cat: "เพิ่มหมวดหมู่",
+    btn_save: "เซฟลง Sheet",
+    start_time: "เริ่ม (นาที:วินาที)",
+    end_time: "จบ (นาที:วินาที)",
+    btn_submit: "ส่งข้อมูล",
+    admin_access: "เข้าสู่โหมดผู้ดูแลระบบ",
+    logout: "ออกจากระบบ",
+    admin_login: "Admin Login",
+    admin_sub: "กรุณากรอกชื่อและรหัสผ่านแอดมิน",
+    btn_cancel: "ยกเลิก",
+    btn_view_songs: "ดูรายการเพลง",
+    yt_link: "ลิงก์ Youtube",
+    song_name: "ชื่อเพลง",
+    artist: "ศิลปิน/ชื่อช่อง",
+    gender: "เพศของศิลปิน",
+    gender_mix: "รวม/ผสม (Mix)",
+    gender_m: "ศิลปินชาย (Boy Group)",
+    gender_f: "ศิลปินหญิง (Girl Group)",
+    has_breakdance: "เพลงนี้มี Breakdance ใช่ไหม?",
+    ex_time: "เช่น 1:30",
+    edit_song: "แก้ไขข้อมูลเพลง",
+    new_user_alert: "ยินดีต้อนรับสมาชิกใหม่!\nกรุณากรอกชื่อผู้ใช้งานของคุณ",
+    dance_part: "ท่อนที่ใช้เต้น",
+    btn_start: "เริ่มใช้งานเลย!",
+    txtFeedbackTitle: "แสดงความคิดเห็นสำหรับงานนี้",
+    lblSongList: "1. SONG LIST (รายการเพลงในงาน)",
+    lblPlace: "2. PLACE (สถานที่จัดงาน/บรรยากาศ)",
+    lblWebsite: "3. WEBSITE REQUEST SONG (ระบบเว็บขอเพลง)",
+    lblAdditional: "4. ADDITIONAL COMMENT (ข้อเสนอแนะเพิ่มเติม)",
+    txtDontShowToday: "ไม่ต้องแสดงอีกในวันนี้",
+    btnSkipFeedback: "ข้าม",
+    btnSubmitFeedback: "ส่งความคิดเห็น",
+    btnAddSongAdmin: "+ เพิ่มเพลงใหม่ (Admin)",
+    btnViewFeedbackAdmin: "📊 ดู Feedback งานนี้",
+    txtDashboardTitle: "Dashboard สรุป Feedback งานนี้",
+  },
+  en: {
+    welcome: "Welcome to Delia",
+    welcome_sub:
+      "Join us in requesting and voting for songs in Random Dance! 💖",
+    google_sub: "Sign in securely with your Google account",
+    welcome_back: "Welcome back, ",
+    slide_login: "Slide to Login",
+    not_me: "Not you? (Logout)",
+    login: "Login",
+    calendar_title: "Event Calendar",
+    calendar_sub:
+      "Select a date to view details, or admin click to create an event.",
+    song_req_title: "Song Requests",
+    btn_back: "Back to Calendar",
+    btn_add_song: "Request Song",
+    btn_manage_pl: "Manage Playlist",
+    search_ph: "Search song or artist...",
+    setlist_title: "Setlist Manager",
+    btn_back_list: "Back to Requests",
+    pool: "📦 Pool",
+    hide_pool: "Hide Pool",
+    show_pool: "Show Pool",
+    btn_fetch_votes: "Fetch Requests",
+    btn_add_cat: "Add Category",
+    btn_save: "Save to Sheet",
+    start_time: "Start (Min:Sec)",
+    end_time: "End (Min:Sec)",
+    btn_submit: "Submit",
+    admin_access: "Admin Access",
+    logout: "Logout",
+    admin_login: "Admin Login",
+    admin_sub: "Enter admin username and password",
+    btn_cancel: "Cancel",
+    btn_view_songs: "View Songs",
+    yt_link: "YouTube Link",
+    song_name: "Song Name",
+    artist: "Artist/Channel",
+    gender: "Artist Gender",
+    gender_mix: "Mixed Group",
+    gender_m: "Boy Group",
+    gender_f: "Girl Group",
+    has_breakdance: "Has Breakdance?",
+    ex_time: "e.g., 1:30",
+    edit_song: "Edit Song Info",
+    new_user_alert: "Welcome New Member!\nPlease enter your username",
+    dance_part: "Dance Part",
+    btn_start: "Let's Go!",
+    txtFeedbackTitle: "Event Feedback Form",
+    lblSongList: "1. SONG LIST",
+    lblPlace: "2. PLACE",
+    lblWebsite: "3. WEBSITE REQUEST SONG",
+    lblAdditional: "4. ADDITIONAL COMMENT",
+    txtDontShowToday: "Don't show again today",
+    btnSkipFeedback: "Skip",
+    btnSubmitFeedback: "Submit Feedback",
+    btnAddSongAdmin: "+ Add New Song (Admin)",
+    btnViewFeedbackAdmin: "📊 View Event Feedback",
+    txtDashboardTitle: "Event Feedback Dashboard Summary",
+  },
 };
 
-// 3. ป้องกันการฝืนเปิด Console (Debugger Trap)
-// หากมีคนพยายามเปิด Console ระบบจะค้างอยู่ที่โหมด Debug ทันทีทำให้ดูโค้ดไม่ได้
-setInterval(function() {
-  (function() {
-    return false;
-  }
-  ['constructor']('debugger')
-  ());
-}, 100);
+let currentLang = localStorage.getItem("delia_lang") || "th";
 
-// UUID System
-let userUUID = localStorage.getItem("delia_rd_uuid");
-if (!userUUID) { userUUID = 'delia-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9); localStorage.setItem("delia_rd_uuid", userUUID); }
+function setLanguage(lang) {
+  currentLang = lang;
+  localStorage.setItem("delia_lang", lang);
 
-let allEvents = [];
-let currentSongs = [];
-let filteredSongs = [];
-let activeEvent = null; // เก็บ Object ของ Event ที่เลือก
-let selectedSongId = "";
-let isEventOpenForRequest = false;
-let isAdminLoggedIn = false;
-let pendingSongData = null;
-
-const monthNames = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
-const today = new Date();
-let currentMonth = today.getMonth(), currentYear = today.getFullYear();
-const realMonth = today.getMonth(), realYear = today.getFullYear();
-
-// --- Initialization ---
-window.onload = () => {
-  fetchAPI("getEvents", {}, res => {
-    allEvents = res;
-    renderCalendar();
-    
-    // URL Routing: ตรวจสอบว่ามี ?e=... ต่อท้ายไหม
-    const urlParams = new URLSearchParams(window.location.search);
-    const eventIdFromUrl = urlParams.get('e');
-    if (eventIdFromUrl) {
-      const ev = allEvents.find(e => e.id === eventIdFromUrl);
-      if (ev) openEventIntro(ev.id);
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    if (translations[lang][el.getAttribute("data-i18n")]) {
+      el.innerText = translations[lang][el.getAttribute("data-i18n")];
     }
   });
-};
 
-// --- API Helper ---
-function fetchAPI(action, payload, onSuccess) {
-  fetch(GAS_API_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action: action, payload: payload })
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) onSuccess(data.data);
-    else customAlert("ข้อผิดพลาด", data.message);
-  })
-  .catch(err => customAlert("Error", "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้: " + err.message));
+  document.querySelectorAll("[data-i18n-ph]").forEach((el) => {
+    if (translations[lang][el.getAttribute("data-i18n-ph")]) {
+      el.placeholder = translations[lang][el.getAttribute("data-i18n-ph")];
+    }
+  });
+
+  document
+    .querySelectorAll(".lang-label")
+    .forEach((el) => el.classList.remove("active"));
+  document
+    .querySelectorAll(`.${lang}-label`)
+    .forEach((el) => el.classList.add("active"));
+
+  if (typeof renderGoogleButton === "function") {
+    renderGoogleButton(lang);
+  }
+
+  renderCalendarDays();
+  if (currentEvents.length > 0) renderCalendar();
 }
 
-// --- UI Navigation ---
-function showView(view) {
-  document.getElementById('view-calendar').classList.add('hidden');
-  document.getElementById('view-songs').classList.add('hidden');
-  if (view === 'calendar') {
-    document.getElementById('view-calendar').classList.remove('hidden');
-    // Clear URL param without reloading
-    window.history.pushState({}, '', window.location.pathname);
-  }
-  if (view === 'songs') { 
-    document.getElementById('view-songs').classList.remove('hidden'); 
-    document.getElementById('search-bar').value = ''; 
-    // Set URL param for sharing
-    window.history.pushState({}, '', '?e=' + activeEvent.id);
+function renderCalendarDays() {
+  const daysTh = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
+  const daysEn = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const target = document.getElementById("calendar-weekdays");
+  if (target) {
+    target.innerHTML = (currentLang === "th" ? daysTh : daysEn)
+      .map((d) => `<div>${d}</div>`)
+      .join("");
   }
 }
-function goBackToCalendar() { showView('calendar'); }
-function openModal(id) { document.getElementById(id).classList.add('active'); }
-function closeModal(id) { document.getElementById(id).classList.remove('active'); }
-function customAlert(title, message) { document.getElementById('alert-title').innerText = title; document.getElementById('alert-message').innerText = message; openModal('alertModal'); }
 
-// --- Calendar ---
+function formatTime(dtStr) {
+  if (!dtStr || dtStr === "-") return "-";
+  try {
+    const d = new Date(dtStr);
+    if (isNaN(d)) return dtStr;
+    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  } catch (e) {
+    return dtStr;
+  }
+}
+
+// ==========================================
+// 3. ระบบเซสชัน & Google Sign-In (JS API)
+// ==========================================
+let userUUID = localStorage.getItem("delia_uuid") || "";
+let userName = localStorage.getItem("delia_username") || "";
+let isAdminLoggedIn = localStorage.getItem("delia_role") === "Admin";
+let isDevLoggedIn = localStorage.getItem("delia_role") === "Developer";
+let pendingEmail = "";
+
+document.addEventListener("DOMContentLoaded", () => {
+  setLanguage(currentLang);
+
+  if (userUUID) {
+    if (sessionStorage.getItem("delia_active_session")) {
+      fetchAPI(
+        "auth",
+        { action: "auto_login", clientUuid: userUUID },
+        (res) => {
+          saveLoginSession(res);
+        },
+        (err) => {
+          if (err !== "NETWORK_ERROR") executeLogout();
+        },
+      );
+    } else {
+      document
+        .querySelectorAll(".login-step")
+        .forEach((el) => el.classList.add("hidden"));
+      document.getElementById("step-unlock").classList.remove("hidden");
+      document.getElementById("display-welcome-name").innerText = userName;
+      openModal("welcomeModal");
+    }
+  } else {
+    document
+      .querySelectorAll(".login-step")
+      .forEach((el) => el.classList.add("hidden"));
+    document.getElementById("step-google-login").classList.remove("hidden");
+    openModal("welcomeModal");
+  }
+
+  updateUserUI();
+  loadEvents();
+});
+
+function initGoogle() {
+  renderGoogleButton(currentLang);
+}
+
+function renderGoogleButton(lang) {
+  if (typeof google === "undefined" || !google.accounts) return;
+  const clientIdEl = document.getElementById("my-client-id");
+  if (!clientIdEl) return;
+  const clientId = clientIdEl.value;
+  if (!clientId || clientId.includes("YOUR_GOOGLE_CLIENT_ID")) return;
+
+  google.accounts.id.initialize({
+    client_id: clientId,
+    callback: handleGoogleLogin,
+    context: "signin",
+    ux_mode: "popup",
+    locale: lang === "th" ? "th-TH" : "en-US",
+  });
+
+  const btnContainer = document.getElementById("google-btn-container");
+  if (btnContainer) {
+    btnContainer.innerHTML = "";
+    google.accounts.id.renderButton(btnContainer, {
+      theme: "outline",
+      size: "large",
+      shape: "pill",
+      type: "standard",
+      text: "signin_with",
+    });
+  }
+}
+
+function decodeJwtResponse(token) {
+  let base64Url = token.split(".")[1];
+  let base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+  let jsonPayload = decodeURIComponent(
+    atob(base64)
+      .split("")
+      .map(function (c) {
+        return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
+      })
+      .join(""),
+  );
+  return JSON.parse(jsonPayload);
+}
+
+function handleGoogleLogin(response) {
+  const responsePayload = decodeJwtResponse(response.credential);
+  pendingEmail = responsePayload.email;
+  showToast("Google Sign-In", "กำลังตรวจสอบบัญชี...", "success");
+
+  fetchAPI(
+    "auth",
+    { action: "google_login", email: pendingEmail },
+    (res) => {
+      if (res.status === "need_username") {
+        document.getElementById("step-google-login").classList.add("hidden");
+        document
+          .getElementById("step-username-setup")
+          .classList.remove("hidden");
+      } else if (res.status === "login_success") {
+        saveLoginSession(res);
+      }
+    },
+    (err) => {
+      showToast("ข้อผิดพลาด", err, "error");
+    },
+  );
+}
+
+function registerNewUser() {
+  const username = document.getElementById("setup-username").value.trim();
+  if (!username)
+    return showToast("แจ้งเตือน", "กรุณากรอกชื่อผู้ใช้งานก่อนค่ะ", "error");
+
+  const btn = document.getElementById("btn-register-user");
+  btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...`;
+  btn.disabled = true;
+
+  fetchAPI(
+    "auth",
+    { action: "register_user", username: username, email: pendingEmail },
+    (res) => {
+      saveLoginSession(res);
+      btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> <span data-i18n="btn_start">${translations[currentLang].btn_start}</span>`;
+      btn.disabled = false;
+    },
+    (err) => {
+      btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> <span data-i18n="btn_start">${translations[currentLang].btn_start}</span>`;
+      btn.disabled = false;
+      showToast("ข้อผิดพลาด", err, "error");
+    },
+  );
+}
+
+function saveLoginSession(res) {
+  userUUID = res.uuid;
+  userName = res.username;
+  isAdminLoggedIn = res.role === "Admin";
+  isDevLoggedIn = res.role === "Developer";
+
+  localStorage.setItem("delia_uuid", userUUID);
+  localStorage.setItem("delia_username", userName);
+  localStorage.setItem("delia_role", res.role);
+  sessionStorage.setItem("delia_active_session", "true");
+
+  closeModal("welcomeModal");
+  updateUserUI();
+}
+
+function handleSlide(el) {
+  const val = el.value;
+  const thumb = document.getElementById("slider-thumb");
+  thumb.style.left = `calc(${val}% - ${val * 0.5}px)`;
+  if (val >= 95) {
+    el.value = 100;
+    thumb.style.left = `calc(100% - 50px)`;
+    el.disabled = true;
+    executeUnlock();
+  }
+}
+
+function resetSlide(el) {
+  if (el.value < 95) {
+    el.value = 0;
+    document.getElementById("slider-thumb").style.left = "0px";
+  }
+}
+
+function executeUnlock() {
+  const sliderText = document.getElementById("slider-text");
+  if (sliderText) sliderText.innerText = "กำลังเข้าสู่ระบบค่ะ...";
+
+  fetchAPI(
+    "auth",
+    { action: "auto_login", clientUuid: userUUID },
+    (res) => {
+      saveLoginSession(res);
+      loadEvents();
+    },
+    (err) => {
+      if (err === "NETWORK_ERROR") {
+        const slider = document.getElementById("unlock-slider");
+        if (slider) {
+          slider.value = 0;
+          slider.disabled = false;
+          document.getElementById("slider-thumb").style.left = "0px";
+          document.getElementById("slider-text").innerText =
+            translations[currentLang].slide_login || "เลื่อนเพื่อเข้าสู่ระบบ";
+        }
+      } else {
+        showToast(
+          "เซสชันหมดอายุ",
+          "ไม่พบข้อมูลบัญชี กรุณาล็อกอินด้วย Google ใหม่ค่ะ",
+          "error",
+        );
+        executeLogout();
+      }
+    },
+  );
+}
+
+function executeLogout() {
+  localStorage.removeItem("delia_uuid");
+  localStorage.removeItem("delia_username");
+  localStorage.removeItem("delia_role");
+  sessionStorage.removeItem("delia_active_session");
+
+  userUUID = "";
+  userName = "";
+  isAdminLoggedIn = false;
+  isDevLoggedIn = false;
+
+  updateUserUI();
+  closeModal("logoutModal");
+  showToast("Logout", "ออกจากระบบเรียบร้อยค่ะ", "success");
+  goHome();
+
+  const slider = document.getElementById("unlock-slider");
+  if (slider) {
+    slider.value = 0;
+    slider.disabled = false;
+    document.getElementById("slider-thumb").style.left = "0px";
+    document.getElementById("slider-text").innerText =
+      translations[currentLang].slide_login || "เลื่อนเพื่อเข้าสู่ระบบ";
+  }
+
+  setTimeout(() => {
+    document
+      .querySelectorAll(".login-step")
+      .forEach((el) => el.classList.add("hidden"));
+    document.getElementById("step-google-login").classList.remove("hidden");
+    openModal("welcomeModal");
+  }, 500);
+}
+
+function openAdminLoginModal() {
+  closeModal("welcomeModal");
+  closeModal("logoutModal");
+  openModal("adminLoginModal");
+}
+
+function executeAdminAuth() {
+  const u = document.getElementById("admin-user").value.trim();
+  const p = document.getElementById("admin-pass").value.trim();
+  if (!u || !p)
+    return showToast("ข้อผิดพลาด", "กรุณากรอกข้อมูลให้ครบค่ะ", "error");
+
+  const btn = document.getElementById("btn-admin-submit");
+  const originalText = btn.innerHTML;
+  btn.innerHTML = "<i class='fa-solid fa-spinner fa-spin'></i>";
+  btn.disabled = true;
+
+  fetchAPI(
+    "auth",
+    { action: "admin_login", username: u, password: p },
+    (res) => {
+      btn.innerHTML = originalText;
+      btn.disabled = false;
+      saveLoginSession(res);
+      closeModal("adminLoginModal");
+      renderCalendar();
+    },
+    (err) => {
+      btn.innerHTML = originalText;
+      btn.disabled = false;
+      showToast("เข้าสู่ระบบล้มเหลว", err, "error");
+    },
+  );
+}
+
+function updateUserUI() {
+  const profileBtn = document.getElementById("btn-user-profile");
+  const btnLogin = document.getElementById("btn-login-main");
+
+  if (isAdminLoggedIn || isDevLoggedIn) {
+    let icon = isDevLoggedIn
+      ? "<i class='fa-solid fa-code'></i>"
+      : "<i class='fa-solid fa-crown'></i>";
+    profileBtn.innerHTML = `${icon} <span class="hide-mobile">${userName}</span>`;
+    profileBtn.classList.remove("hidden");
+    if (btnLogin) btnLogin.classList.add("hidden");
+    document
+      .querySelectorAll(".admin-only:not(.fab-btn)")
+      .forEach((el) => el.classList.remove("hidden"));
+  } else if (userUUID && userName) {
+    profileBtn.innerHTML = `<i class='fa-solid fa-user'></i> <span class="hide-mobile">${userName}</span>`;
+    profileBtn.classList.remove("hidden");
+    if (btnLogin) btnLogin.classList.add("hidden");
+    document
+      .querySelectorAll(".admin-only")
+      .forEach((el) => el.classList.add("hidden"));
+  } else {
+    profileBtn.classList.add("hidden");
+    if (btnLogin) btnLogin.classList.remove("hidden");
+    document
+      .querySelectorAll(".admin-only")
+      .forEach((el) => el.classList.add("hidden"));
+  }
+  updateFABs();
+}
+
+function fetchAPI(action, payload, onSuccess, onError) {
+  fetch(apiURL, {
+    method: "POST",
+    body: JSON.stringify({ action: action, payload: payload }),
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      if (data.success) {
+        onSuccess(data.data);
+      } else {
+        showToast("แจ้งเตือน", data.message, "error");
+        if (onError) onError(data.message);
+      }
+    })
+    .catch((err) => {
+      console.error("System Error details:", err);
+      if (err.name === "TypeError" && err.message.includes("fetch")) {
+        showToast(
+          "เครือข่ายขัดข้อง",
+          "สัญญาณอินเทอร์เน็ตอาจไม่เสถียร ลองใหม่อีกครั้งนะคะ",
+          "warning",
+        );
+      }
+      if (onError) onError("NETWORK_ERROR");
+    });
+}
+
+// ==========================================
+// 4. UI View Control & Modals
+// ==========================================
+function goHome() {
+  window.history.replaceState({}, document.title, window.location.pathname);
+  showView("calendar");
+  loadEvents();
+}
+function showView(viewId) {
+  currentViewId = viewId;
+  document.getElementById("view-calendar").classList.add("hidden");
+  document.getElementById("view-songs").classList.add("hidden");
+  document.getElementById("view-playlist").classList.add("hidden");
+  document.getElementById("view-" + viewId).classList.remove("hidden");
+  updateFABs();
+}
+function updateFABs() {
+  const fabAddCat = document.getElementById("fab-add-category");
+  if (fabAddCat) fabAddCat.classList.add("hidden");
+  if (isAdminLoggedIn && currentViewId === "playlist" && fabAddCat)
+    fabAddCat.classList.remove("hidden");
+}
+function openModal(id) {
+  if (id === "logoutModal") {
+    const nameDisplay = document.getElementById("profile-name-display");
+    if (nameDisplay) nameDisplay.innerText = userName;
+  }
+  const modal = document.getElementById(id);
+  if (modal) modal.classList.add("active");
+}
+function closeModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) modal.classList.remove("active");
+}
+function showToast(title, message, type = "success") {
+  const container = document.getElementById("toast-container");
+  if (!container) return;
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  const icon =
+    type === "success"
+      ? '<i class="fa-solid fa-circle-check"></i>'
+      : '<i class="fa-solid fa-circle-xmark"></i>';
+  toast.innerHTML = `<div class="toast-icon">${icon}</div><div class="toast-body"><h4>${title}</h4><p>${message}</p></div>`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.animation = "slideInRight 0.3s reverse forwards";
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+let inputModalCallback = null;
+function openInputModal(title, defaultVal, callback) {
+  document.getElementById("input-modal-title").innerHTML =
+    `<i class="fa-solid fa-pen-to-square"></i> ${title}`;
+  const inputVal = document.getElementById("input-modal-value");
+  if (inputVal) inputVal.value = defaultVal || "";
+  inputModalCallback = callback;
+  openModal("inputModal");
+  setTimeout(() => {
+    if (inputVal) inputVal.focus();
+  }, 100);
+}
+function submitInputModal() {
+  const inputVal = document.getElementById("input-modal-value");
+  if (!inputVal) return;
+  if (inputModalCallback) inputModalCallback(inputVal.value.trim());
+  closeModal("inputModal");
+}
+
+let confirmCallback = null;
+function showCustomConfirm(title, message, callback) {
+  document.getElementById("custom-confirm-title").innerText = title;
+  document.getElementById("custom-confirm-message").innerText = message;
+  confirmCallback = callback;
+  openModal("customConfirmModal");
+}
+const confirmOkBtn = document.getElementById("btn-custom-confirm-ok");
+if (confirmOkBtn) {
+  confirmOkBtn.addEventListener("click", () => {
+    if (confirmCallback) confirmCallback();
+    closeModal("customConfirmModal");
+  });
+}
+
+function getYTThumb(link) {
+  if (!link) return "DeliaLogo.png";
+  let videoId = "";
+  const regExp =
+    /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|shorts\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = link.match(regExp);
+  if (match && match[2].length === 11) videoId = match[2];
+  return videoId
+    ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+    : "DeliaLogo.png";
+}
+
+// ==========================================
+// 5. ปฏิทิน
+// ==========================================
+let currentMonth = new Date().getMonth();
+let currentYear = new Date().getFullYear();
+const monthNamesTh = [
+  "มกราคม",
+  "กุมภาพันธ์",
+  "มีนาคม",
+  "เมษายน",
+  "พฤษภาคม",
+  "มิถุนายน",
+  "กรกฎาคม",
+  "สิงหาคม",
+  "กันยายน",
+  "ตุลาคม",
+  "พฤศจิกายน",
+  "ธันวาคม",
+];
+const monthNamesEn = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+function loadEvents() {
+  const grid = document.getElementById("calendar-grid");
+  if (grid)
+    grid.innerHTML = `<div class="loader" style="grid-column: 1 / -1;"><i class="fa-solid fa-circle-notch fa-spin fa-2x"></i></div>`;
+
+  fetchAPI(
+    "getEvents",
+    {},
+    (res) => {
+      currentEvents = res;
+      renderCalendar();
+      renderUpcomingEvent();
+
+      // 🌟 ระบบรับ URL Parameters สำหรับส่งไปยังหน้างานหรือเปิดฟีดแบ็กทันที
+      const urlParams = new URLSearchParams(window.location.search);
+      const sharedEventId = urlParams.get("eventId");
+      const viewMode = urlParams.get("view");
+
+      if (sharedEventId) {
+        const ev = currentEvents.find((e) => e.id === sharedEventId);
+        if (ev) {
+          activeEvent = ev;
+          enterSongList();
+
+          // 🌟 ถ้าสตาฟส่งลิงก์แบบต่อท้ายด้วย &view=feedback ให้บังคับเปิดฟอร์มทันที
+          if (viewMode === "feedback") {
+            setTimeout(() => openModal("feedbackModal"), 800);
+          }
+        }
+      }
+    },
+    () => {
+      if (grid)
+        grid.innerHTML = `<p class="text-center text-muted" style="grid-column: 1 / -1;">Error Loading</p>`;
+    },
+  );
+}
+
 function renderCalendar() {
-  document.getElementById('month-year-display').innerText = `${monthNames[currentMonth]} ${currentYear}`;
-  const grid = document.getElementById('calendar-grid');
-  grid.innerHTML = `<div class="day-name">อา.</div><div class="day-name">จ.</div><div class="day-name">อ.</div><div class="day-name">พ.</div><div class="day-name">พฤ.</div><div class="day-name">ศ.</div><div class="day-name">ส.</div>`;
-  
+  const display = document.getElementById("month-year-display");
+  if (display) {
+    const monthText =
+      currentLang === "th"
+        ? monthNamesTh[currentMonth]
+        : monthNamesEn[currentMonth];
+    const yearText = currentLang === "th" ? currentYear + 543 : currentYear;
+    display.innerText = `${monthText} ${yearText}`;
+  }
+
+  const grid = document.getElementById("calendar-grid");
+  if (!grid) return;
+  grid.innerHTML = "";
+
   const firstDay = new Date(currentYear, currentMonth, 1).getDay();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
-  for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div class="day-cell empty"></div>`;
+  for (let i = 0; i < firstDay; i++) {
+    const emptyCell = document.createElement("div");
+    emptyCell.className = "calendar-day empty";
+    grid.appendChild(emptyCell);
+  }
+
   for (let i = 1; i <= daysInMonth; i++) {
-    const dateStr = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${i.toString().padStart(2, '0')}`;
-    const ev = allEvents.find(e => e.date === dateStr);
-    
-    let cellHtml = `<div class="date-num">${i}</div>`;
-    if (ev) cellHtml += `<div class="event-name-cal" title="${ev.name}">${ev.name}</div>`;
-    grid.innerHTML += `<div class="day-cell ${ev ? 'has-event' : ''}" onclick="${ev ? `openEventIntro('${ev.id}')` : `checkAdminAdd('${dateStr}')`}">${cellHtml}</div>`;
+    const cell = document.createElement("div");
+    cell.className = "calendar-day";
+
+    // 1. ตั้งค่าเริ่มต้น: วันอื่นๆ ที่ว่างเปล่า ให้แอดมินกดพื้นที่เพื่อสร้างงานได้ตามเดิม
+    if (isAdminLoggedIn) {
+      cell.classList.add("admin-clickable");
+      cell.onclick = () => {
+        const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(i).padStart(2, "0")}`;
+        document.getElementById("event-date").value = dateStr;
+        openModal("addEventModal");
+      };
+    }
+
+    const dateNum = document.createElement("div");
+    dateNum.className = "day-number";
+    dateNum.innerText = i;
+    cell.appendChild(dateNum);
+
+    const dayEvents = currentEvents.filter((e) => {
+      const d = new Date(e.date);
+      return (
+        d.getDate() === i &&
+        d.getMonth() === currentMonth &&
+        d.getFullYear() === currentYear
+      );
+    });
+
+    if (dayEvents.length > 0) {
+      cell.onclick = () => {
+        handleEventClick(dayEvents[0]); // เปลี่ยนตรงนี้
+      };
+      cell.style.cursor = "pointer";
+      if (isAdminLoggedIn) cell.classList.remove("admin-clickable");
+    }
+
+    dayEvents.forEach((e) => {
+      const evt = document.createElement("div");
+      evt.className = `day-event ${e.status === "Closed" ? "closed" : ""}`;
+      evt.innerHTML = `${e.name} ${e.status === "Closed" ? '<i class="fa-solid fa-lock"></i>' : ""}`;
+
+      // ปุ่มแสดงชื่องานขนาดเท่าเดิม และยังกดได้ปกติ
+      evt.onclick = (event) => {
+        event.stopPropagation();
+        handleEventClick(e); // เปลี่ยนตรงนี้
+      };
+      cell.appendChild(evt);
+    });
+    grid.appendChild(cell);
   }
-  document.getElementById('btn-prev-month').disabled = (currentMonth === realMonth && currentYear === realYear);
-  document.getElementById('btn-next-month').disabled = (currentMonth === (realMonth + 1 > 11 ? 0 : realMonth + 1));
 }
-function changeMonth(step) { currentMonth += step; if (currentMonth > 11) { currentMonth = 0; currentYear++; } if (currentMonth < 0) { currentMonth = 11; currentYear--; } renderCalendar(); }
-function checkAdminAdd(dateStr) { if (isAdminLoggedIn) { document.getElementById('event-date').value = dateStr; openModal('addEventModal'); } }
 
-// --- Event Flow ---
-function openEventIntro(eventId) {
-  activeEvent = allEvents.find(e => e.id === eventId);
-  if (!activeEvent) return;
-
-  const thDate = `${parseInt(activeEvent.date.split('-')[2])} ${monthNames[parseInt(activeEvent.date.split('-')[1])-1]} ${activeEvent.date.split('-')[0]}`;
-  
-  document.getElementById('intro-title').innerText = activeEvent.name;
-  document.getElementById('intro-date').innerText = thDate;
-  document.getElementById('intro-loc').innerText = activeEvent.location || "ไม่ได้ระบุสถานที่";
-  document.getElementById('intro-det').innerText = activeEvent.details || "-";
-  
-  let timeStr = "เปิดรับตลอด";
-  if (activeEvent.openTime && activeEvent.closeTime) {
-    timeStr = `${new Date(activeEvent.openTime).toLocaleString('th-TH')} - ${new Date(activeEvent.closeTime).toLocaleString('th-TH')}`;
+function changeMonth(dir) {
+  currentMonth += dir;
+  if (currentMonth < 0) {
+    currentMonth = 11;
+    currentYear--;
+  } else if (currentMonth > 11) {
+    currentMonth = 0;
+    currentYear++;
   }
-  document.getElementById('intro-time').innerText = timeStr;
-  
-  openModal('eventIntroModal');
+  renderCalendar();
 }
 
+function openEventIntro(event) {
+  activeEvent = event;
+  const d = new Date(event.date);
+  document.getElementById("intro-title").innerText = event.name;
+
+  const monthText =
+    currentLang === "th"
+      ? monthNamesTh[d.getMonth()]
+      : monthNamesEn[d.getMonth()];
+  const yearText =
+    currentLang === "th" ? d.getFullYear() + 543 : d.getFullYear();
+  document.getElementById("intro-date").innerText =
+    `${d.getDate()} ${monthText} ${yearText}`;
+  document.getElementById("intro-loc").innerText = event.location;
+  document.getElementById("intro-time").innerText =
+    `${formatTime(event.openTime)} - ${formatTime(event.closeTime)}`;
+  document.getElementById("intro-det").innerText = event.details || "-";
+  document.getElementById("edit-event-id").value = event.id;
+  openModal("eventIntroModal");
+}
+
+// 🌟 ฟังก์ชันเช็คว่างานจบหรือยัง (ใช้ร่วมกันทั้งระบบ)
+window.isEventEnded = function (event) {
+  if (!event) return false;
+  if (event.status === "Closed") return true;
+  const now = new Date();
+  const evDate = new Date(event.date);
+  evDate.setHours(23, 59, 59, 999);
+  return now > evDate;
+};
+
+// 🌟 ฟังก์ชันจัดการเมื่อกดคลิกที่กล่องงานบนปฏิทิน (ซ่อมแล้ว!)
+window.handleEventClick = function (event) {
+  activeEvent = event;
+
+  if (isEventEnded(event)) {
+    const dontShowDate = localStorage.getItem(`hideFeedback_${event.id}`);
+    const today = new Date().toDateString();
+
+    // 🌟 เช็คว่า User นี้ เคยกดส่งฟอร์มของงานนี้ไปแล้วหรือยัง
+    const hasSubmitted = localStorage.getItem(
+      `feedbackSubmitted_${event.id}_${userUUID}`,
+    );
+    const btnGoToForm = document.getElementById("btn-go-to-form");
+
+    if (hasSubmitted && !isAdminLoggedIn) {
+      btnGoToForm.innerText = "คุณได้กรอกแบบฟอร์มแล้วค่ะ";
+      btnGoToForm.disabled = true;
+      btnGoToForm.style.background = "#b0bec5"; // เปลี่ยนเป็นสีเทา
+      btnGoToForm.style.borderColor = "#b0bec5";
+    } else {
+      btnGoToForm.innerHTML = `<i class="fa-solid fa-pen-to-square"></i> ไปหน้ากรอกแบบประเมิน`;
+      btnGoToForm.disabled = false;
+      btnGoToForm.style.background = ""; // รีเซ็ตสี
+      btnGoToForm.style.borderColor = "";
+    }
+
+    if (dontShowDate === today && !isAdminLoggedIn) {
+      enterSongList();
+    } else {
+      openModal("feedbackPromptModal");
+    }
+  } else {
+    openEventIntro(event);
+  }
+};
+
+// 🌟 ฟังก์ชันเมื่อแอดมินกดปุ่ม "ประกาศจบงาน" (จากหน้าแรก)
+window.adminCloseEvent = function () {
+  showCustomConfirm(
+    "ประกาศจบงาน",
+    "ระบบจะเปลี่ยนสถานะเป็น 'จบแล้ว' (Closed) และเปิดหน้าฟอร์มประเมินทันที ยืนยันหรือไม่?",
+    () => {
+      fetchAPI("closeEvent", { id: activeEvent.id }, (res) => {
+        currentEvents = res;
+        activeEvent = currentEvents.find((e) => e.id === activeEvent.id);
+        showToast("สำเร็จ", "ประกาศจบงานเรียบร้อยค่ะ", "success");
+        closeModal("eventIntroModal");
+        goToFeedbackForm();
+      });
+    },
+  );
+};
+
+// 🌟 ฟังก์ชันกดยืนยันการข้าม
+window.promptSkipFeedback = function () {
+  showCustomConfirm(
+    "ยืนยันการข้าม",
+    "แน่ใจหรือไม่ว่าต้องการข้ามการประเมิน?",
+    () => {
+      currentEventId = activeEvent.id;
+      saveDontShowPreference();
+      closeModal("feedbackPromptModal");
+      enterSongList();
+    },
+  );
+};
+
+// 🌟 ฟังก์ชันพาไปหน้าเว็บฟอร์ม (สร้าง URL ใหม่)
+window.goToFeedbackForm = function () {
+  closeModal("feedbackPromptModal");
+  const formUrl =
+    window.location.origin +
+    window.location.pathname +
+    "?eventId=" +
+    activeEvent.id +
+    "&view=feedback";
+  window.location.href = formUrl;
+};
+
+// 🌟 ฟังก์ชันเข้าสู่หน้ารายการเพลง
 function enterSongList() {
-  closeModal('eventIntroModal');
-  document.getElementById('view-event-title').innerText = activeEvent.name;
-  
-  isEventOpenForRequest = true;
-  let timeText = "";
-  if (activeEvent.openTime && activeEvent.closeTime) {
-    const now = new Date(); const openTime = new Date(activeEvent.openTime); const closeTime = new Date(activeEvent.closeTime);
-    if (now < openTime) { isEventOpenForRequest = false; timeText = `<span style="color:var(--text-muted);"><i class="fa-regular fa-clock"></i> เปิดรับเพลง: ${openTime.toLocaleString('th-TH')}</span>`; } 
-    else if (now > closeTime) { isEventOpenForRequest = false; timeText = `<span style="color:#e74c3c;"><i class="fa-solid fa-lock"></i> ปิดรับขอเพลงแล้ว</span>`; } 
-    else { timeText = `<span style="color:var(--success);"><i class="fa-solid fa-lock-open"></i> เปิดรับขอเพลงและโหวต</span>`; }
+  closeModal("eventIntroModal");
+  currentEventId = activeEvent.id;
+
+  document.getElementById("view-event-title").innerText = activeEvent.name;
+  const statusEl = document.getElementById("view-event-status");
+  const addBtn = document.getElementById("btn-add-song-main");
+
+  if (activeEvent.status === "Closed") {
+    statusEl.innerHTML =
+      '<span style="color:var(--danger)"><i class="fa-solid fa-lock"></i> Closed (Vote Only)</span>';
+    if (addBtn) addBtn.classList.add("hidden");
+  } else {
+    statusEl.innerHTML =
+      '<span style="color:var(--success)"><i class="fa-solid fa-lock-open"></i> Open</span>';
+    if (addBtn) addBtn.classList.remove("hidden");
   }
-  document.getElementById('view-event-status').innerHTML = timeText;
-  document.getElementById('btn-add-song-main').classList.toggle('hidden', !isEventOpenForRequest);
-  document.getElementById('event-closed-msg').classList.toggle('hidden', isEventOpenForRequest);
-  
-  document.getElementById('song-list-content').innerHTML = '<div class="loader"><i class="fa-solid fa-circle-notch fa-spin fa-2x"></i></div>';
-  showView('songs');
 
-  fetchAPI("getSongs", { eventId: activeEvent.id }, res => { currentSongs = res; filteredSongs = [...res]; renderSongList(); });
+  showView("songs");
+  loadSongs();
+
+  window.history.replaceState(
+    { path: window.location.pathname + "?eventId=" + activeEvent.id },
+    "",
+    window.location.pathname + "?eventId=" + activeEvent.id,
+  );
 }
 
-// --- Song List & Search ---
+function goBackToCalendar() {
+  window.history.replaceState({}, document.title, window.location.pathname);
+  showView("calendar");
+}
+
+function loadSongs() {
+  const content = document.getElementById("song-list-content");
+  if (!content) return;
+  content.innerHTML = `<div class="loader"><i class="fa-solid fa-circle-notch fa-spin fa-2x"></i></div>`;
+  fetchAPI(
+    "getSongs",
+    { eventId: activeEvent.id },
+    (res) => {
+      currentSongs = res;
+      filterSongs();
+    },
+    () => {
+      content.innerHTML = `<p class="text-center text-muted">Error Loading</p>`;
+    },
+  );
+}
+
 function filterSongs() {
-  const q = document.getElementById('search-bar').value.toLowerCase();
-  filteredSongs = currentSongs.filter(s => s.name.toLowerCase().includes(q) || (s.artist && s.artist.toLowerCase().includes(q)));
-  renderSongList();
+  const searchInput = document.getElementById("search-bar");
+  const q = searchInput ? searchInput.value.toLowerCase() : "";
+  const filtered = currentSongs.filter(
+    (s) =>
+      s.name.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q),
+  );
+  renderSongs(filtered);
 }
 
-function renderSongList() {
-  const container = document.getElementById('song-list-content');
-  container.innerHTML = "";
-  if(filteredSongs.length === 0) { container.innerHTML = `<div style="text-align:center; padding: 40px; color: var(--text-muted);"><i class="fa-solid fa-compact-disc fa-2x mb-3"></i><br>ไม่พบเพลง หรือยังไม่มีการขอเพลง</div>`; return; }
-  
-  filteredSongs.forEach((song) => {
-    const globalIndex = currentSongs.findIndex(s => s.id === song.id);
-    const isTop10 = globalIndex < 10 && song.votes > 1;
-    let statusBadge = "";
-    if (song.status === "Approved") statusBadge = `<span class="badge-status badge-Approved"><i class="fa-solid fa-check"></i> Approved</span>`;
-    if (song.status === "Played") statusBadge = `<span class="badge-status badge-Played"><i class="fa-solid fa-check-double"></i> Played</span>`;
+window.quickVote = function (e, songId) {
+  e.stopPropagation();
+  // 🌟 ป้องกันไม่ให้โหวตเมื่องานจบแล้ว
+  if (isEventEnded(activeEvent)) {
+    return showToast(
+      "แจ้งเตือน",
+      "งานถูกจัดไปแล้ว ไม่สามารถโหวตเพิ่มได้ค่ะ",
+      "warning",
+    );
+  }
 
-    container.innerHTML += `
-      <div class="song-item status-${song.status}" onclick="openSongDetail('${song.id}')">
-        <div>
-          <div class="song-title">${isTop10 ? '<i class="fa-solid fa-crown badge-top10"></i>' : ''} ${song.name} ${statusBadge}</div>
-          <div class="song-time"><i class="fa-regular fa-clock"></i> ${song.start} - ${song.end} | ${song.artist || ''}</div>
-        </div>
-        <div class="song-votes">${song.votes} <i class="fa-solid fa-heart" style="font-size: 0.8rem;"></i></div>
+  if (!userUUID) return openModal("welcomeModal");
+
+  const s = currentSongs.find((x) => x.id === songId);
+  if (s.creator === userUUID) {
+    return showToast("แจ้งเตือน", "ไม่สามารถโหวตเพลงของตนเองได้ค่ะ", "error");
+  }
+
+  const icon = e.currentTarget.querySelector("i");
+  const countSpan = e.currentTarget.querySelector(".vote-count");
+  let currentVotes = parseInt(countSpan.innerText);
+
+  if (icon.classList.contains("fa-regular")) {
+    icon.classList.remove("fa-regular");
+    icon.classList.add("fa-solid");
+    icon.style.color = "var(--primary)";
+    countSpan.style.color = "var(--primary)";
+    countSpan.innerText = currentVotes + 1;
+    icon.classList.add("heart-pop");
+    setTimeout(() => icon.classList.remove("heart-pop"), 300);
+  } else {
+    icon.classList.remove("fa-solid");
+    icon.classList.add("fa-regular");
+    icon.style.color = "var(--text-muted)";
+    countSpan.style.color = "var(--text-muted)";
+    countSpan.innerText = currentVotes - 1;
+  }
+
+  fetchAPI(
+    "voteSong",
+    { eventId: activeEvent.id, songId: songId, uuid: userUUID },
+    (res) => {
+      currentSongs = res;
+    },
+  );
+};
+
+function renderSongs(songs) {
+  const container = document.getElementById("song-list-content");
+  if (!container) return;
+  container.innerHTML = "";
+
+  if (songs.length === 0) {
+    container.innerHTML = `<p class="text-center text-muted" style="padding: 40px 0;">ยังไม่มีเพลงในระบบค่ะ มาเสนอเพลงกันเถอะ! 🎵</p>`;
+    return;
+  }
+  // 🌟 หาลำดับโหวตที่ไม่ซ้ำกัน 5 อันดับแรก (ไม่นับ 0 โหวต)
+  let uniqueVotes = [...new Set(songs.map((s) => s.votes))]
+    .filter((v) => v > 0)
+    .sort((a, b) => b - a);
+
+  songs.forEach((s, index) => {
+    const card = document.createElement("div");
+
+    // หา Rank ของเพลงนี้
+    let rank = s.votes > 0 ? uniqueVotes.indexOf(s.votes) + 1 : 0;
+    let topClass = "";
+    let rankHtml = "";
+
+    if (rank === 1) {
+      topClass = "rank-1";
+      rankHtml =
+        '<i class="fa-solid fa-crown rank-icon" style="color: #ffd700; filter: drop-shadow(0 0 2px rgba(255,215,0,0.8));"></i>';
+    } else if (rank === 2) {
+      topClass = "rank-2";
+      rankHtml =
+        '<i class="fa-solid fa-medal rank-icon" style="color: #C0C0C0;"></i>';
+    } else if (rank === 3) {
+      topClass = "rank-3";
+      rankHtml =
+        '<i class="fa-solid fa-medal rank-icon" style="color: #CD7F32;"></i>';
+    } else if (rank === 4 || rank === 5) {
+      topClass = "rank-4-5";
+      rankHtml = `<span style="font-weight:800; color:var(--primary); margin-right:6px; font-size:0.9rem;">#${rank}</span>`;
+    }
+
+    let statusClass =
+      s.status === "Approved"
+        ? "status-approved"
+        : s.status === "Played"
+          ? "status-played"
+          : "";
+    card.className = `song-card ${statusClass} ${topClass}`;
+    card.style.animationDelay = `${index * 0.05}s`;
+
+    let tagsHTML = "";
+    // ... โค้ดสร้าง Tag เวลาเหมือนเดิม
+    let timeText = "";
+    if (s.end) {
+      timeText = `${s.start} - ${s.end}`;
+    } else if (s.start) {
+      timeText = s.start;
+    } else {
+      timeText = "ยังไม่ระบุเวลา";
+    }
+    tagsHTML += `<span class="tag" style="background: #E8F5E9; color: #2E7D32; font-weight: 600;"><i class="fa-regular fa-clock"></i> ${timeText}</span> `;
+
+    if (s.isBreakdance === "Yes" || s.isBreakdance === true) {
+      tagsHTML += `<span class="tag tag-bd" style="background: #FFF3E0; color: #E65100; border: 1px solid #FFCC80;"><i class="fa-solid fa-bolt"></i> Dance Break</span>`;
+    }
+
+    let voteIcon = "fa-regular fa-heart";
+    let voteColor = "var(--text-muted)";
+
+    if (userUUID && s.voters && s.voters.includes(userUUID)) {
+      voteIcon = "fa-solid fa-heart";
+      voteColor = "var(--primary)";
+    }
+    if (userUUID && s.creator === userUUID) {
+      voteIcon = "fa-solid fa-star";
+      voteColor = "#F39C12";
+    }
+
+    // เอา rankHtml ไปใส่หน้าชื่อเพลง
+    card.innerHTML = `
+      <img src="${getYTThumb(s.link)}" class="song-thumbnail" alt="thumbnail">
+      <div class="song-info-main">
+        <div class="song-title">${rankHtml}${s.name}</div>
+        <div class="song-artist">${s.artist}</div>
+        <div class="song-tags">${tagsHTML}</div>
+      </div>
+      <div class="song-vote-quick" onclick="quickVote(event, '${s.id}')">
+        <i class="${voteIcon} vote-anim-icon" style="color: ${voteColor}; font-size: 1.5rem;"></i>
+        <span class="vote-count" style="color: ${voteColor};">${s.votes}</span>
       </div>
     `;
+    card.onclick = () => openSongDetail(s.id);
+    container.appendChild(card);
   });
 }
 
-// --- Detail & Interactions ---
-function formatYoutubeLink(url, startStr) {
-  if (!url || !url.includes("youtu")) return url;
-  try {
-    let parts = startStr.split(':'); let seconds = 0;
-    if (parts.length === 2) seconds = parseInt(parts[0]) * 60 + parseInt(parts[1]);
-    else if (parts.length === 3) seconds = parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(parts[2]);
-    if (seconds && !Number.isNaN(seconds)) return url + (url.includes('?') ? '&' : '?') + 't=' + seconds + 's';
-  } catch (e) {} return url;
+function openSongDetail(id) {
+  const s = currentSongs.find((song) => song.id === id);
+  if (!s) return;
+  selectedSongId = id;
+
+  document.getElementById("det-title").innerText = s.name;
+  document.getElementById("det-artist").innerText = s.artist;
+
+  let timeText = "";
+  if (s.end) {
+    timeText = `${s.start} - ${s.end}`;
+  } else if (s.start) {
+    timeText = s.start;
+  } else {
+    timeText = "ยังไม่ระบุเวลา";
+  }
+  document.getElementById("det-time").innerText = timeText;
+
+  document.getElementById("det-votes").innerText = `${s.votes}`;
+
+  let tagText = "";
+  if (s.isBreakdance === "Yes" || s.isBreakdance === true) {
+    tagText = "มี Dance Break ⚡";
+  } else {
+    tagText = "ไม่มี Dance Break";
+  }
+  document.getElementById("det-tag").innerText = tagText;
+
+  const linkBtn = document.getElementById("det-link");
+  if (s.link) {
+    linkBtn.href = s.link;
+    linkBtn.classList.remove("hidden");
+  } else {
+    linkBtn.classList.add("hidden");
+  }
+
+  const editMySongBtn = document.getElementById("btn-edit-mysong");
+  if (isAdminLoggedIn || (userUUID && s.creator === userUUID)) {
+    if (editMySongBtn) editMySongBtn.classList.remove("hidden");
+  } else {
+    if (editMySongBtn) editMySongBtn.classList.add("hidden");
+  }
+
+  const adminControls = document.getElementById("admin-song-controls");
+  if (isAdminLoggedIn) {
+    if (adminControls) adminControls.classList.remove("hidden");
+  } else {
+    if (adminControls) adminControls.classList.add("hidden");
+  }
+
+  openModal("songDetailModal");
 }
 
 function shareSong() {
-  const song = currentSongs.find(s => s.id === selectedSongId);
-  const url = window.location.href; // Will include ?e=...
-  const text = `🔥 ช่วยโหวตเพลง "${song.name}" ในงาน ${activeEvent.name}\nโหวตได้ที่ลิงก์นี้: ${url}`;
-  navigator.clipboard.writeText(text).then(() => customAlert("คัดลอกแล้ว", "นำไปวางในแชทเพื่อชวนเพื่อนโหวตได้เลย!"));
+  const url =
+    window.location.origin +
+    window.location.pathname +
+    "?eventId=" +
+    activeEvent.id;
+  navigator.clipboard
+    .writeText(url)
+    .then(() => {
+      showToast("คัดลอกสำเร็จ", "คัดลอกลิงก์เรียบร้อยแล้วค่ะ", "success");
+    })
+    .catch(() => {
+      showCustomConfirm("Share Link", url, () => {});
+    });
 }
 
-function openSongDetail(songId) {
-  selectedSongId = songId; const song = currentSongs.find(s => s.id === songId); if(!song) return;
+// ==========================================
+// 7. การขอและแก้ไขเพลง (Form Handling)
+// ==========================================
 
-  document.getElementById('det-title').innerText = song.name;
-  document.getElementById('det-artist').innerText = song.artist || '-';
-  document.getElementById('det-time').innerText = `${song.start} - ${song.end}`;
-  document.getElementById('det-votes').innerText = song.votes + " คน";
-  
-  let statusHtml = song.status;
-  if(song.status === "Approved") statusHtml = `<span style="color:var(--success)"><i class="fa-solid fa-check"></i> อนุมัติแล้ว</span>`;
-  if(song.status === "Played") statusHtml = `<span style="color:var(--text-muted)"><i class="fa-solid fa-check-double"></i> เล่นไปแล้ว</span>`;
-  document.getElementById('det-status').innerHTML = statusHtml;
+window.toggleTimeInputs = function (mode) {
+  const prefix = mode === "add" ? "song" : "edit-song";
+  const part = document.getElementById(`${prefix}-dance-part`).value;
+  const timeDiv = document.getElementById(`${prefix}-time-inputs`);
+  if (part === "Custom") {
+    timeDiv.style.display = "flex";
+  } else {
+    timeDiv.style.display = "none";
+  }
+};
 
-  const linkBtn = document.getElementById('det-link');
-  if (song.link) { linkBtn.href = formatYoutubeLink(song.link, song.start); linkBtn.classList.remove('hidden'); } else { linkBtn.classList.add('hidden'); }
-
-  const btnVote = document.getElementById('btn-toggle-vote');
-  if (!isEventOpenForRequest || song.status === "Played") { btnVote.innerHTML = `<i class="fa-solid fa-lock"></i> หมดเวลาโหวต`; btnVote.style.background = "var(--text-muted)"; btnVote.disabled = true; }
-  else if (song.creator === userUUID) { btnVote.innerHTML = `<i class="fa-solid fa-star"></i> เพลงของคุณ`; btnVote.style.background = "var(--text-muted)"; btnVote.disabled = true; } 
-  else if (song.voters.includes(userUUID)) { btnVote.innerHTML = `<i class="fa-solid fa-heart-crack"></i> ถอนโหวต`; btnVote.style.background = "var(--text-muted)"; btnVote.disabled = false; } 
-  else { btnVote.innerHTML = `<i class="fa-solid fa-heart"></i> โหวตเพลงนี้`; btnVote.style.background = "var(--primary)"; btnVote.disabled = false; }
-
-  document.getElementById('admin-song-controls').classList.toggle('hidden', !isAdminLoggedIn);
-  openModal('songDetailModal');
+function setGenderDropdown(id, val) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  Array.from(sel.options).forEach((o) => {
+    if (o.value === "Mix") o.remove();
+  });
+  if (val === "Mix" || val === "MixSong") {
+    sel.add(new Option(translations[currentLang].gender_mix || "Mix", "Mix"));
+    sel.value = "Mix";
+  } else {
+    sel.value = val;
+  }
 }
 
-function handleVote() {
-  const btn = document.getElementById('btn-toggle-vote');
-  btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังประมวลผล...`; btn.disabled = true;
-  fetchAPI("voteSong", { eventId: activeEvent.id, songId: selectedSongId, uuid: userUUID }, res => { currentSongs = res; filterSongs(); btn.disabled = false; openSongDetail(selectedSongId); });
+async function processYoutubeLink(inputId, nameId, artistId, genderId) {
+  const inputEl = document.getElementById(inputId);
+  if (!inputEl) return;
+  const url = inputEl.value;
+  if (!url.includes("youtu")) return;
+
+  const btnId =
+    inputId === "song-link" ? "btn-song-submit" : "btn-song-edit-submit";
+  const btn = document.getElementById(btnId);
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch(
+      `https://noembed.com/embed?dataType=json&url=${url}`,
+    );
+    const data = await res.json();
+    if (data && data.title) {
+      document.getElementById(nameId).value = data.title;
+      document.getElementById(artistId).value = data.author_name;
+      fetchAPI(
+        "aiProcess",
+        { title: data.title, author: data.author_name },
+        (dbRes) => {
+          setGenderDropdown(genderId, dbRes.gender);
+          currentOrigin = dbRes.origin || "K-Pop";
+          showToast("สำเร็จ", `ตรวจสอบข้อมูลสำเร็จ`, "success");
+          if (btn) btn.disabled = false;
+        },
+        () => {
+          if (btn) btn.disabled = false;
+        },
+      );
+    }
+  } catch (e) {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function autoFillYoutube() {
+  processYoutubeLink("song-link", "song-name", "song-artist", "song-gender");
+}
+function autoFillYoutubeEdit() {
+  processYoutubeLink(
+    "edit-song-link",
+    "edit-song-name",
+    "edit-song-artist",
+    "edit-song-gender",
+  );
 }
 
 function checkQuotaAndOpenModal() {
-  if (currentSongs.filter(s => s.creator === userUUID).length >= 3) customAlert("โควตาเต็ม", "1 บัญชีขอเพลงได้สูงสุด 3 เพลง");
-  else openModal('addSongModal');
+  if (!userUUID) return openModal("welcomeModal");
+
+  const maxQuota = parseInt(activeEvent.quota) || 3;
+
+  if (
+    !isAdminLoggedIn &&
+    currentSongs.filter((s) => s.creator === userUUID).length >= maxQuota
+  ) {
+    return showToast(
+      "โควตาเต็ม",
+      `คุณขอเพลงครบโควตา ${maxQuota} เพลงแล้วค่ะ`,
+      "error",
+    );
+  }
+
+  ["song-link", "song-name", "song-artist", "song-start", "song-end"].forEach(
+    (id) => {
+      const el = document.getElementById(id);
+      if (el) el.value = "";
+    },
+  );
+
+  document.getElementById("song-breakdance").checked = false;
+  document.getElementById("song-dance-part").value = "Hook 1";
+  toggleTimeInputs("add");
+
+  setGenderDropdown("song-gender", "M");
+  currentOrigin = "K-Pop";
+  openModal("addSongModal");
 }
 
+let pendingSongData = null;
 function preCheckAddSong() {
-  const name = document.getElementById('song-name').value;
-  if(!name) return customAlert("ข้อมูลไม่ครบ", "กรุณาระบุชื่อเพลง");
-  
-  const searchName = name.toLowerCase().replace(/\s/g, '');
-  const dup = currentSongs.find(s => s.name.toLowerCase().replace(/\s/g, '') === searchName);
-  
-  pendingSongData = { name: name, artist: document.getElementById('song-artist').value, link: document.getElementById('song-link').value, start: document.getElementById('song-start').value, end: document.getElementById('song-end').value };
+  const nameInput = document.getElementById("song-name");
+  const name = nameInput ? nameInput.value.trim() : "";
+  const linkInput = document.getElementById("song-link");
+  const link = linkInput ? linkInput.value.trim() : "";
+  if (!name) return showToast("แจ้งเตือน", "กรุณากรอกชื่อเพลงค่ะ", "error");
+
+  const dup = currentSongs.find(
+    (s) =>
+      (link && s.link === link) ||
+      s.name.toLowerCase().replace(/\s/g, "") ===
+        name.toLowerCase().replace(/\s/g, ""),
+  );
 
   if (dup) {
-    document.getElementById('confirm-message').innerText = `มีคนขอเพลง "${dup.name}" ไว้แล้วในระบบ คุณต้องการเพิ่มเพลงนี้ซ้ำหรือไม่?`;
-    closeModal('addSongModal'); openModal('confirmModal');
-  } else executeAddSong();
+    if (dup.voters && dup.voters.includes(userUUID))
+      return showToast("แจ้งเตือน", "คุณได้โหวตเพลงนี้ไปแล้วค่ะ", "error");
+    else if (dup.creator === userUUID)
+      return showToast("แจ้งเตือน", "คุณเป็นผู้เสนอเพลงนี้ค่ะ", "error");
+    else {
+      fetchAPI(
+        "voteSong",
+        { eventId: activeEvent.id, songId: dup.id, uuid: userUUID },
+        (res) => {
+          currentSongs = res;
+          filterSongs();
+          closeModal("addSongModal");
+          showToast(
+            "พบเพลงซ้ำ",
+            "ระบบได้ทำการเพิ่มโหวตให้เพลงที่มีอยู่แล้วค่ะ",
+            "success",
+          );
+        },
+      );
+      return;
+    }
+  }
+
+  const part = document.getElementById("song-dance-part").value;
+  let finalStart = "",
+    finalEnd = "";
+  if (part === "Custom") {
+    finalStart = document.getElementById("song-start").value.trim();
+    finalEnd = document.getElementById("song-end").value.trim();
+  } else {
+    finalStart = part;
+    finalEnd = "";
+  }
+
+  pendingSongData = {
+    name: name,
+    artist: document.getElementById("song-artist").value,
+    link: link,
+    start: finalStart,
+    end: finalEnd,
+    isBreakdance: document.getElementById("song-breakdance").checked,
+    gender: document.getElementById("song-gender").value,
+    origin: currentOrigin,
+  };
+  executeAddSong();
 }
 
 function executeAddSong() {
-  closeModal('confirmModal');
-  const btn = document.getElementById('btn-song-submit'); btn.innerText = "กำลังบันทึก..."; btn.disabled = true;
-  fetchAPI("addSong", { eventId: activeEvent.id, songData: pendingSongData, uuid: userUUID }, res => {
-    btn.innerText = "ส่งข้อมูล"; btn.disabled = false; currentSongs = res; filterSongs(); closeModal('addSongModal'); document.querySelectorAll('#addSongModal input').forEach(i => i.value = '');
+  const btn = document.getElementById("btn-song-submit");
+  if (btn) btn.disabled = true;
+  fetchAPI(
+    "addSong",
+    {
+      eventId: activeEvent.id,
+      songData: pendingSongData,
+      uuid: userUUID,
+      isAdmin: isAdminLoggedIn,
+    },
+    (res) => {
+      currentSongs = res;
+      filterSongs();
+      closeModal("addSongModal");
+      showToast("สำเร็จ", "เพิ่มเพลงเรียบร้อยค่ะ", "success");
+      if (btn) btn.disabled = false;
+    },
+    () => {
+      if (btn) btn.disabled = false;
+    },
+  );
+}
+
+function openUserEditSong() {
+  const s = currentSongs.find((song) => song.id === selectedSongId);
+  if (!s) return;
+
+  document.getElementById("edit-song-link").value = s.link;
+  document.getElementById("edit-song-name").value = s.name;
+  document.getElementById("edit-song-artist").value = s.artist;
+
+  const predefinedParts = ["Hook 1", "Hook 2", "Dance Break"];
+  if (predefinedParts.includes(s.start) && !s.end) {
+    document.getElementById("edit-song-dance-part").value = s.start;
+    document.getElementById("edit-song-start").value = "";
+    document.getElementById("edit-song-end").value = "";
+  } else {
+    document.getElementById("edit-song-dance-part").value = "Custom";
+    document.getElementById("edit-song-start").value = s.start || "";
+    document.getElementById("edit-song-end").value = s.end || "";
+  }
+  toggleTimeInputs("edit");
+
+  document.getElementById("edit-song-breakdance").checked =
+    s.isBreakdance === "Yes" || s.isBreakdance === true;
+  currentOrigin = s.origin;
+  setGenderDropdown("edit-song-gender", s.gender);
+  closeModal("songDetailModal");
+  openModal("editSongModal");
+}
+
+function executeEditSong() {
+  const name = document.getElementById("edit-song-name").value.trim();
+  if (!name) return showToast("Error", "Name required", "error");
+
+  const part = document.getElementById("edit-song-dance-part").value;
+  let finalStart = "",
+    finalEnd = "";
+  if (part === "Custom") {
+    finalStart = document.getElementById("edit-song-start").value.trim();
+    finalEnd = document.getElementById("edit-song-end").value.trim();
+  } else {
+    finalStart = part;
+    finalEnd = "";
+  }
+
+  const updatedData = {
+    name: name,
+    artist: document.getElementById("edit-song-artist").value,
+    link: document.getElementById("edit-song-link").value,
+    start: finalStart,
+    end: finalEnd,
+    isBreakdance: document.getElementById("edit-song-breakdance").checked,
+    gender: document.getElementById("edit-song-gender").value,
+    origin: currentOrigin,
+  };
+
+  const btn = document.getElementById("btn-song-edit-submit");
+  if (btn) btn.disabled = true;
+  fetchAPI(
+    "editSong",
+    {
+      eventId: activeEvent.id,
+      songId: selectedSongId,
+      songData: updatedData,
+      uuid: userUUID,
+      isAdmin: isAdminLoggedIn,
+    },
+    (res) => {
+      currentSongs = res;
+      filterSongs();
+      closeModal("editSongModal");
+      showToast("Success", "อัปเดตข้อมูลสำเร็จ", "success");
+      if (btn) btn.disabled = false;
+    },
+    () => {
+      if (btn) btn.disabled = false;
+    },
+  );
+}
+
+function adminUpdateStatus(status) {
+  fetchAPI(
+    "updateSongStatus",
+    { eventId: activeEvent.id, songId: selectedSongId, status: status },
+    (res) => {
+      currentSongs = res;
+      filterSongs();
+      closeModal("songDetailModal");
+      showToast("Success", "อัปเดตสถานะเรียบร้อย");
+    },
+  );
+}
+
+function confirmDeleteSong() {
+  showCustomConfirm("ลบเพลง", "ต้องการลบเพลงนี้ออกจากระบบใช่หรือไม่?", () => {
+    fetchAPI(
+      "deleteSong",
+      { eventId: activeEvent.id, songId: selectedSongId },
+      (res) => {
+        currentSongs = res;
+        filterSongs();
+        closeModal("songDetailModal");
+        showToast("สำเร็จ", "ลบเพลงเรียบร้อยค่ะ", "success");
+      },
+    );
   });
 }
 
-// --- Admin ---
-function handleLogin() {
-  const btn = document.getElementById('btn-login-submit'); btn.innerText = "Checking..."; btn.disabled = true;
-  fetchAPI("adminLogin", { username: document.getElementById('admin-user').value, password: document.getElementById('admin-pass').value }, res => {
-    btn.innerText = "เข้าสู่ระบบ"; btn.disabled = false; isAdminLoggedIn = true; closeModal('adminLoginModal');
-    document.getElementById('btn-admin-login').classList.add('hidden'); document.getElementById('btn-admin-add').classList.remove('hidden'); document.getElementById('btn-admin-export').classList.remove('hidden');
-    customAlert("สำเร็จ", "ปลดล็อกสิทธิ์ผู้ดูแลระบบ");
+// ==========================================
+// 8. Playlist Manager
+// ==========================================
+let sortableLists = [];
+let boardSortable = null;
+let isPoolOpen = false;
+
+function togglePoolSidebar() {
+  isPoolOpen = !isPoolOpen;
+  const pool = document.getElementById("pool-sidebar");
+  const workspace = document.querySelector(".playlist-workspace");
+  const text = document.getElementById("toggle-sidebar-text");
+
+  if (isPoolOpen) {
+    if (pool) pool.classList.remove("collapsed");
+    if (workspace) workspace.classList.remove("pool-closed");
+    if (text) text.innerText = translations[currentLang].hide_pool;
+  } else {
+    if (pool) pool.classList.add("collapsed");
+    if (workspace) workspace.classList.add("pool-closed");
+    if (text) text.innerText = translations[currentLang].show_pool;
+  }
+}
+
+function openPlaylistManager() {
+  document.getElementById("playlist-event-title").innerText =
+    `${translations[currentLang].setlist_title}: ${activeEvent.name}`;
+  showView("playlist");
+  document.getElementById("list-pool").innerHTML = "";
+  document.getElementById("dynamic-board").innerHTML = "";
+
+  const pool = document.getElementById("pool-sidebar");
+  const workspace = document.querySelector(".playlist-workspace");
+  const textBtn = document.getElementById("toggle-sidebar-text");
+
+  if (window.innerWidth <= 768) {
+    isPoolOpen = false;
+    if (pool) pool.classList.add("collapsed");
+    if (workspace) workspace.classList.add("pool-closed");
+    if (textBtn) textBtn.innerText = translations[currentLang].show_pool;
+  } else {
+    isPoolOpen = true;
+    if (pool) pool.classList.remove("collapsed");
+    if (workspace) workspace.classList.remove("pool-closed");
+    if (textBtn) textBtn.innerText = translations[currentLang].hide_pool;
+  }
+
+  fetchAPI(
+    "getPlaylist",
+    { eventId: activeEvent.id, date: activeEvent.date },
+    (savedLists) => {
+      const categoryNames = [
+        ...new Set(savedLists.map((s) => s.listName)),
+      ].filter((n) => n !== "list-pool" && n !== "POOL" && n !== "กองกลาง");
+      if (categoryNames.length === 0 && savedLists.length === 0) {
+        currentSongs
+          .filter((s) => s.status !== "Played")
+          .sort((a, b) => b.votes - a.votes)
+          .forEach((s) => {
+            document
+              .getElementById("list-pool")
+              .appendChild(createPlaylistItem(s));
+          });
+      } else {
+        categoryNames.forEach((cat) => createCategoryBox(cat));
+        savedLists.forEach((s) => {
+          let target = document.querySelector(
+            `.drop-zone[data-category="${s.listName}"]`,
+          );
+          if (!target) target = document.getElementById("list-pool");
+          target.appendChild(createPlaylistItem(s));
+        });
+      }
+      initSortables();
+    },
+  );
+}
+
+function addNewCategory() {
+  openInputModal("ชื่อหมวดหมู่", "K-Pop", (newTitle) => {
+    if (
+      !newTitle ||
+      newTitle.toLowerCase() === "pool" ||
+      newTitle === "list-pool" ||
+      newTitle === "กองกลาง"
+    )
+      return;
+    createCategoryBox(newTitle);
   });
 }
+
+function createCategoryBox(title) {
+  const safeId = "cat-" + Date.now() + Math.floor(Math.random() * 1000);
+  const col = document.createElement("div");
+  col.className = "list-col dynamic-category";
+  col.innerHTML = `
+    <div class="list-col-header" title="กดค้าง 2 วินาทีเพื่อย้ายตำแหน่งหมวดหมู่">
+      <h3>${title} 
+        <i class="fa-solid fa-pen text-muted" style="font-size:0.8rem; cursor:pointer; margin-left:8px;" onclick="renameCategory('${safeId}')"></i> 
+        <i class="fa-solid fa-trash text-danger" style="font-size:0.8rem; cursor:pointer; margin-left:4px;" onclick="deleteCategory('${safeId}')"></i>
+      </h3>
+      <button class="btn btn-outline btn-full btn-sm" onclick="randomizeAlternate('${safeId}')"><i class="fa-solid fa-shuffle"></i> M/F</button>
+    </div>
+    <div id="${safeId}" class="drop-zone" data-category="${title}"></div>
+  `;
+  document.getElementById("dynamic-board").appendChild(col);
+  initSortables();
+}
+
+function renameCategory(zoneId) {
+  const zone = document.getElementById(zoneId);
+  if (!zone) return;
+  const oldTitle = zone.getAttribute("data-category");
+  openInputModal("เปลี่ยนชื่อหมวดหมู่", oldTitle, (newTitle) => {
+    if (
+      newTitle &&
+      newTitle.toLowerCase() !== "pool" &&
+      newTitle !== "กองกลาง"
+    ) {
+      zone.setAttribute("data-category", newTitle);
+      zone.previousElementSibling.querySelector("h3").innerHTML = `${newTitle} 
+        <i class="fa-solid fa-pen text-muted" style="font-size:0.8rem; cursor:pointer; margin-left:8px;" onclick="renameCategory('${zoneId}')"></i> 
+        <i class="fa-solid fa-trash text-danger" style="font-size:0.8rem; cursor:pointer; margin-left:4px;" onclick="deleteCategory('${zoneId}')"></i>`;
+    }
+  });
+}
+
+function deleteCategory(zoneId) {
+  const zone = document.getElementById(zoneId);
+  if (!zone) return;
+  const items = Array.from(zone.children);
+  if (items.length > 0) {
+    showCustomConfirm(
+      "ยืนยันการลบ",
+      "เพลงในหมวดนี้จะถูกย้ายกลับไปกองกลางทั้งหมด ยืนยันหรือไม่?",
+      () => {
+        const pool = document.getElementById("list-pool");
+        items.forEach((el) => pool.appendChild(el));
+        zone.parentElement.remove();
+      },
+    );
+  } else {
+    zone.parentElement.remove();
+  }
+}
+
+function confirmImportFromVotes() {
+  showCustomConfirm(
+    "ดึงข้อมูลใหม่",
+    "เพลงทั้งหมดจะถูกย้ายกลับไปกองกลาง ยืนยันหรือไม่?",
+    () => {
+      const pool = document.getElementById("list-pool");
+      document
+        .querySelectorAll(".dynamic-board .drop-zone")
+        .forEach((zone) => (zone.innerHTML = ""));
+      pool.innerHTML = "";
+      currentSongs
+        .filter((s) => s.status !== "Played")
+        .sort((a, b) => b.votes - a.votes)
+        .forEach((s) => {
+          pool.appendChild(createPlaylistItem(s));
+        });
+      showToast("สำเร็จ", "ดึงข้อมูลเพลงกลับกองกลางเรียบร้อยค่ะ");
+    },
+  );
+}
+
+function createPlaylistItem(song) {
+  const div = document.createElement("div");
+  div.className = "playlist-item";
+  div.dataset.id = song.id;
+  div.dataset.gender = song.gender || "Mix";
+  div.dataset.bd =
+    song.isBreakdance === "Yes" || song.isBreakdance === true
+      ? "true"
+      : "false";
+
+  let tags = "";
+  let originColor =
+    song.origin === "T-Pop"
+      ? "#FFF59D"
+      : song.origin === "J-Pop"
+        ? "#FFCC80"
+        : "#E1BEE7";
+  let originTextColor =
+    song.origin === "T-Pop"
+      ? "#F57F17"
+      : song.origin === "J-Pop"
+        ? "#E65100"
+        : "#4A148C";
+  tags += `<span class="tag" style="background:${originColor}; color:${originTextColor}; font-weight:600;">${song.origin || "K-Pop"}</span> `;
+  if (div.dataset.gender === "M") tags += `<span class="tag tag-m">M</span>`;
+  else if (div.dataset.gender === "F")
+    tags += `<span class="tag tag-f">F</span>`;
+  else tags += `<span class="tag">Mix</span>`;
+  if (div.dataset.bd === "true") tags += ` <span class="tag tag-bd">BD</span>`;
+
+  div.innerHTML = `
+    <div style="display:flex; align-items:center; overflow:hidden; gap: 8px;">
+      <img src="${getYTThumb(song.link)}" style="width:40px; height:24px; object-fit:cover; border-radius:4px;">
+      <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+        <strong>${song.name}</strong><br><span style="font-size:0.75rem; color:#888;">${song.artist}</span>
+      </div>
+    </div>
+    <div style="display:flex; gap:3px;">${tags}</div>
+  `;
+  return div;
+}
+
+function initSortables() {
+  sortableLists.forEach((s) => s.destroy());
+  sortableLists = [];
+  if (boardSortable) boardSortable.destroy();
+
+  boardSortable = new Sortable(document.getElementById("dynamic-board"), {
+    animation: 150,
+    handle: ".list-col-header",
+    ghostClass: "sortable-ghost",
+    delay: 2000,
+    delayOnTouchOnly: false,
+  });
+
+  document.querySelectorAll(".drop-zone").forEach((zone) => {
+    sortableLists.push(
+      new Sortable(zone, {
+        group: "shared",
+        animation: 150,
+        ghostClass: "sortable-ghost",
+        delay: 150,
+        delayOnTouchOnly: true,
+      }),
+    );
+  });
+}
+
+function randomizeAlternate(containerId) {
+  const container = document.getElementById(containerId);
+  const items = Array.from(container.children);
+  if (items.length < 2) return;
+  const shuffle = (array) => array.sort(() => Math.random() - 0.5);
+  let males = shuffle(items.filter((i) => i.dataset.gender === "M"));
+  let females = shuffle(items.filter((i) => i.dataset.gender === "F"));
+  let mixes = shuffle(
+    items.filter((i) => i.dataset.gender !== "M" && i.dataset.gender !== "F"),
+  );
+  container.innerHTML = "";
+  let mIdx = 0,
+    fIdx = 0,
+    mixIdx = 0,
+    turn = "M";
+  while (
+    mIdx < males.length ||
+    fIdx < females.length ||
+    mixIdx < mixes.length
+  ) {
+    if (turn === "M") {
+      if (mIdx < males.length) {
+        container.appendChild(males[mIdx++]);
+        turn = "F";
+      } else turn = "F";
+    } else if (turn === "F") {
+      if (fIdx < females.length) {
+        container.appendChild(females[fIdx++]);
+        turn = "Mix";
+      } else turn = "Mix";
+    } else if (turn === "Mix") {
+      if (mixIdx < mixes.length) {
+        container.appendChild(mixes[mixIdx++]);
+        turn = "M";
+      } else turn = "M";
+    }
+  }
+}
+
+function aiMagicSetlist() {
+  const pool = document.getElementById("list-pool");
+  const items = Array.from(pool.children);
+  if (items.length < 3)
+    return showToast(
+      "แจ้งเตือน",
+      "ต้องการเพลงในกองกลางอย่างน้อย 3 เพลงค่ะ",
+      "error",
+    );
+  const btn = document.getElementById("btn-ai-setlist");
+  if (btn) btn.disabled = true;
+  const songData = items.map((el) => ({
+    id: el.dataset.id,
+    gender: el.dataset.gender,
+    isBreakdance: el.dataset.bd === "true",
+  }));
+  fetchAPI(
+    "aiMagicSetlist",
+    { songs: songData },
+    (sortedIds) => {
+      pool.innerHTML = "";
+      sortedIds.forEach((id) => {
+        const matchedEl = items.find((el) => el.dataset.id === id);
+        if (matchedEl) pool.appendChild(matchedEl);
+      });
+      items.forEach((el) => {
+        if (!sortedIds.includes(el.dataset.id)) pool.appendChild(el);
+      });
+      if (btn) btn.disabled = false;
+      showToast("สำเร็จ", "จัดเรียงคิวเพลงสลับชายหญิงเรียบร้อยค่ะ", "success");
+    },
+    () => {
+      if (btn) btn.disabled = false;
+    },
+  );
+}
+
+function savePlaylistData() {
+  const lists = [];
+  document.querySelectorAll(".drop-zone").forEach((zone) => {
+    const listName = zone.getAttribute("data-category");
+    const items = zone.children;
+    for (let i = 0; i < items.length; i++) {
+      const s = currentSongs.find((song) => song.id === items[i].dataset.id);
+      if (s)
+        lists.push({
+          listName: listName,
+          id: s.id,
+          name: s.name,
+          artist: s.artist,
+          gender: s.gender,
+          isBreakdance: s.isBreakdance,
+          time: `${s.start}-${s.end}`,
+          link: s.link,
+        });
+    }
+  });
+  const btnTop = document.getElementById("btn-save-playlist-top");
+  const btnBot = document.getElementById("btn-save-playlist-bottom");
+  if (btnTop) btnTop.disabled = true;
+  if (btnBot) btnBot.disabled = true;
+  fetchAPI(
+    "savePlaylist",
+    { eventId: activeEvent.id, date: activeEvent.date, lists: lists },
+    (res) => {
+      if (btnTop) btnTop.disabled = false;
+      if (btnBot) btnBot.disabled = false;
+      showToast("สำเร็จ", "บันทึกเพลย์ลิสต์เรียบร้อยค่ะ");
+    },
+    () => {
+      if (btnTop) btnTop.disabled = false;
+      if (btnBot) btnBot.disabled = false;
+    },
+  );
+}
+
 function handleAddEvent() {
-  const name = document.getElementById('event-name').value; const date = document.getElementById('event-date').value;
-  if(!date || !name) return customAlert("ข้อมูลไม่ครบ", "กรุณาระบุวันที่และชื่องาน");
-  const btn = document.getElementById('btn-event-submit'); btn.innerText = "กำลังสร้าง..."; btn.disabled = true;
-  fetchAPI("createEvent", { name: name, date: date, location: document.getElementById('event-loc').value, openTime: document.getElementById('event-open').value, closeTime: document.getElementById('event-close').value, details: document.getElementById('event-det').value }, res => {
-    allEvents = res; renderCalendar(); closeModal('addEventModal'); btn.innerText = "สร้างกำหนดการ"; btn.disabled = false; document.querySelectorAll('#addEventModal input').forEach(i => i.value = '');
-    customAlert("สำเร็จ", "เพิ่มงานเรียบร้อย");
+  const quotaInput = document.getElementById("event-quota");
+  const p = {
+    date: document.getElementById("event-date").value,
+    name: document.getElementById("event-name").value,
+    location: document.getElementById("event-loc").value,
+    openTime: document.getElementById("event-open").value,
+    closeTime: document.getElementById("event-close").value,
+    details: document.getElementById("event-det").value,
+    quota: quotaInput ? quotaInput.value : 3,
+  };
+
+  if (!p.date || !p.name)
+    return showToast("แจ้งเตือน", "กรุณากรอกข้อมูลให้ครบถ้วนค่ะ", "error");
+
+  const btn = document.getElementById("btn-event-submit");
+  if (btn) btn.disabled = true;
+
+  fetchAPI(
+    "createEvent",
+    p,
+    (res) => {
+      currentEvents = res;
+      renderCalendar();
+      closeModal("addEventModal");
+      showToast("สำเร็จ", "สร้างกำหนดการเรียบร้อยค่ะ", "success");
+      if (btn) btn.disabled = false;
+    },
+    () => {
+      if (btn) btn.disabled = false;
+    },
+  );
+}
+
+function confirmDeleteEvent() {
+  const id = document.getElementById("edit-event-id").value;
+  showCustomConfirm("ลบกำหนดการ", "คุณต้องการลบงานนี้ใช่หรือไม่?", () => {
+    fetchAPI("deleteEvent", { id: id }, (res) => {
+      currentEvents = res;
+      renderCalendar();
+      closeModal("editEventModal");
+      showToast("สำเร็จ", "ลบกำหนดการเรียบร้อยค่ะ", "success");
+    });
   });
 }
-function adminDeleteSong() {
-  if(!confirm("ลบเพลงนี้?")) return;
-  closeModal('songDetailModal'); fetchAPI("deleteSong", { eventId: activeEvent.id, songId: selectedSongId }, res => { currentSongs = res; filterSongs(); });
+
+// ==========================================
+// ระบบคำนวณและแสดง Upcoming Event
+// ==========================================
+function renderUpcomingEvent() {
+  const container = document.getElementById("upcoming-event-container");
+  if (!container || currentEvents.length === 0) return;
+
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  let upcomingEvents = currentEvents.filter((e) => {
+    const evDate = new Date(e.date);
+    evDate.setHours(0, 0, 0, 0);
+    return evDate >= now;
+  });
+
+  upcomingEvents.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  if (upcomingEvents.length > 0) {
+    const nextEv = upcomingEvents[0];
+    const d = new Date(nextEv.date);
+    const monthText =
+      currentLang === "th"
+        ? monthNamesTh[d.getMonth()]
+        : monthNamesEn[d.getMonth()];
+    const yearText =
+      currentLang === "th" ? d.getFullYear() + 543 : d.getFullYear();
+    const dateStr = `${d.getDate()} ${monthText} ${yearText}`;
+
+    let badgeText =
+      currentLang === "th" ? "งานถัดไปที่กำลังจะมาถึง" : "Upcoming Event";
+    let actionText =
+      currentLang === "th" ? "ดูรายละเอียด / ขอเพลง" : "View Details";
+
+    container.innerHTML = `
+      <div class="upcoming-card" onclick="openEventIntroUpcoming('${nextEv.id}')">
+        <div class="upcoming-info">
+          <div style="font-size: 0.75rem; font-weight: bold; background: rgba(255,255,255,0.25); padding: 3px 8px; border-radius: 12px; display: inline-block; margin-bottom: 8px;">
+            <i class="fa-solid fa-star"></i> ${badgeText}
+          </div>
+          <h3>${nextEv.name}</h3>
+          <p><i class="fa-regular fa-calendar"></i> ${dateStr} &nbsp;|&nbsp; <i class="fa-solid fa-location-dot"></i> ${nextEv.location}</p>
+        </div>
+        <div class="upcoming-action">
+          ${actionText} <i class="fa-solid fa-chevron-right"></i>
+        </div>
+      </div>
+    `;
+    container.style.display = "block";
+  } else {
+    container.style.display = "none";
+  }
 }
-function adminUpdateStatus(status) {
-  closeModal('songDetailModal'); fetchAPI("updateSongStatus", { eventId: activeEvent.id, songId: selectedSongId, status: status }, res => { currentSongs = res; filterSongs(); });
+
+window.openEventIntroUpcoming = function (id) {
+  const ev = currentEvents.find((e) => e.id === id);
+  if (ev) openEventIntro(ev);
+};
+
+// ==========================================
+// ระบบ Feedback Form
+// ==========================================
+let currentRatings = { songList: 0, place: 0, website: 0 };
+let currentEventId = "";
+
+function setRating(category, score) {
+  currentRatings[category] = score;
+  const stars = document.querySelectorAll(
+    `.rating-stars[data-category="${category}"] .star`,
+  );
+  stars.forEach((star, index) => {
+    if (index < score) {
+      star.classList.add("active");
+    } else {
+      star.classList.remove("active");
+    }
+  });
 }
-function exportDJ() {
-  if(currentSongs.length === 0) return customAlert("ไม่มีข้อมูล", "ยังไม่มีเพลงในรายการ");
-  let text = `🔥 Playlist: ${activeEvent.name}\n\n`;
-  currentSongs.forEach((s, i) => { text += `${i+1}. ${s.name} - ${s.artist} [${s.start}-${s.end}] (${s.votes} โหวต)\n`; if(s.link) text += `Link: ${formatYoutubeLink(s.link, s.start)}\n`; text += `\n`; });
-  navigator.clipboard.writeText(text).then(() => customAlert("สำเร็จ", "คัดลอกรายชื่อเพลง (Export to DJ) เรียบร้อย"));
+
+function checkAndShowFeedbackModal(eventId) {
+  const dontShowDate = localStorage.getItem(`hideFeedback_${eventId}`);
+  const today = new Date().toDateString();
+
+  if (dontShowDate !== today) {
+    const modal = document.getElementById("feedbackModal");
+    if (modal) {
+      modal.classList.remove("hidden"); // 🌟 บังคับเอา hidden ออกก่อนเผื่อค้าง
+      openModal("feedbackModal"); // ใช้ระบบเปิด Modal หลักของเว็บ
+    }
+  }
+}
+
+function skipFeedback() {
+  saveDontShowPreference();
+  closeFeedbackModal();
+}
+
+function closeFeedbackModal() {
+  closeModal("feedbackModal");
+  // อัปเดต URL ลบ &view=feedback ออก เผื่อย้อนกลับหรือรีเฟรช
+  if (currentEventId) {
+    window.history.replaceState(
+      {},
+      "",
+      window.location.pathname + "?eventId=" + currentEventId,
+    );
+  }
+}
+
+function saveDontShowPreference() {
+  const chk = document.getElementById("chkDontShowToday");
+  if (chk && chk.checked) {
+    const today = new Date().toDateString();
+    localStorage.setItem(`hideFeedback_${currentEventId}`, today);
+  }
+}
+
+function handleFeedbackSubmit(e) {
+  e.preventDefault();
+  saveDontShowPreference();
+
+  const btnSubmit = document.getElementById("btnSubmitFeedback");
+  const originalText = btnSubmit.innerHTML;
+  btnSubmit.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังส่ง...`;
+  btnSubmit.disabled = true;
+
+  const feedbackData = {
+    eventId: currentEventId,
+    ratings: currentRatings,
+    uuid: userUUID, // 🌟 เพิ่มบรรทัดนี้
+    username: userName || "ผู้ใช้งานทั่วไป", // 🌟 เพิ่มบรรทัดนี้
+    timestamp: new Date().toLocaleString("th-TH"), // 🌟 เพิ่มบรรทัดนี้
+    comments: {
+      songList: document.getElementById("fbSongListComment").value,
+      place: document.getElementById("fbPlaceComment").value,
+      website: document.getElementById("fbWebsiteComment").value,
+      additional: document.getElementById("fbAdditionalComment").value,
+    },
+  };
+
+  fetchAPI("saveFeedback", feedbackData, (res) => {
+    // 🌟 บันทึกว่ายูสเซอร์คนนี้ กรอกฟอร์มของงานนี้ไปแล้ว
+    if (userUUID) {
+      localStorage.setItem(
+        `feedbackSubmitted_${currentEventId}_${userUUID}`,
+        "true",
+      );
+    }
+
+    showToast(
+      "สำเร็จ",
+      currentLang === "th"
+        ? "ส่งความคิดเห็นเรียบร้อยแล้วค่ะ ขอบคุณนะคะ! 💖"
+        : "Thank you for your feedback!",
+      "success",
+    );
+    closeFeedbackModal();
+    btnSubmit.innerHTML = originalText;
+    btnSubmit.disabled = false;
+  });
+}
+
+function openAdminFeedbackDashboard() {
+  const modal = document.getElementById("adminFeedbackDashboardModal");
+  if (modal) modal.classList.remove("hidden");
+
+  const container = document.getElementById("feedbackListContainer");
+  if (container)
+    container.innerHTML = `<div class="loader"><i class="fa-solid fa-circle-notch fa-spin fa-2x"></i></div>`;
+
+  fetchAPI(
+    "getFeedback",
+    { eventId: currentEventId },
+    (data) => {
+      renderDashboardData(data);
+    },
+    (err) => {
+      if (container)
+        container.innerHTML = `<p class="text-center text-danger">เกิดข้อผิดพลาดในการโหลดข้อมูล</p>`;
+    },
+  );
+}
+
+function openAdminAddSongModal() {
+  ["song-link", "song-name", "song-artist", "song-start", "song-end"].forEach(
+    (id) => {
+      const el = document.getElementById(id);
+      if (el) el.value = "";
+    },
+  );
+
+  const bdChk = document.getElementById("song-breakdance");
+  if (bdChk) bdChk.checked = false;
+
+  const dpSel = document.getElementById("song-dance-part");
+  if (dpSel) dpSel.value = "Hook 1";
+
+  toggleTimeInputs("add");
+  setGenderDropdown("song-gender", "M");
+  currentOrigin = "K-Pop";
+
+  openModal("addSongModal");
+}
+
+function closeAdminFeedbackModal() {
+  const modal = document.getElementById("adminFeedbackDashboardModal");
+  if (modal) modal.classList.add("hidden");
+}
+
+function renderDashboardData(data) {
+  const sList = document.getElementById("avgSongList");
+  const sPlace = document.getElementById("avgPlace");
+  const sWeb = document.getElementById("avgWebsite");
+
+  if (sList) sList.innerText = `${data.avgSongList || "0.0"} / 5`;
+  if (sPlace) sPlace.innerText = `${data.avgPlace || "0.0"} / 5`;
+  if (sWeb) sWeb.innerText = `${data.avgWebsite || "0.0"} / 5`;
+
+  // 🌟 คำนวณสถิติ
+  // นับจำนวนผู้ขอเพลงแบบไม่ซ้ำคน จาก currentSongs ที่โหลดไว้อยู่แล้ว
+  const uniqueRequesters = new Set(currentSongs.map((s) => s.creator)).size;
+  const responders = data.comments ? data.comments.length : 0;
+  const percent =
+    uniqueRequesters === 0
+      ? 0
+      : ((responders / uniqueRequesters) * 100).toFixed(1);
+
+  document.getElementById("stat-requesters").innerText = uniqueRequesters;
+  document.getElementById("stat-responders").innerText = responders;
+  document.getElementById("stat-percent").innerText = percent;
+
+  const container = document.getElementById("feedbackListContainer");
+  if (!container) return;
+  container.innerHTML = "";
+
+  if (data.comments && data.comments.length > 0) {
+    data.comments.forEach((item) => {
+      container.innerHTML += `
+        <div class="feedback-item-card" style="background: #fff; border: 1px solid #eee; padding: 15px; margin-bottom: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+          <div style="font-weight: bold; color: var(--primary); margin-bottom: 10px; border-bottom: 1px dashed #ddd; padding-bottom: 5px;">
+            <i class="fa-solid fa-user"></i> ${item.username} 
+            <span style="font-size: 0.75rem; color: #aaa; float: right; font-weight: normal;">${item.timestamp}</span>
+          </div>
+          <div style="font-size: 0.9rem; margin-bottom: 4px;"><strong>1. Song List:</strong> <span style="color: #555;">${item.songList}</span></div>
+          <div style="font-size: 0.9rem; margin-bottom: 4px;"><strong>2. Place:</strong> <span style="color: #555;">${item.place}</span></div>
+          <div style="font-size: 0.9rem; margin-bottom: 4px;"><strong>3. Website:</strong> <span style="color: #555;">${item.website}</span></div>
+          <div style="font-size: 0.9rem;"><strong>4. Additional:</strong> <span style="color: #555;">${item.additional}</span></div>
+        </div>
+      `;
+    });
+  } else {
+    container.innerHTML =
+      '<p class="text-center text-muted" style="padding: 20px 0;">ยังไม่มีผู้ทำแบบประเมินค่ะ</p>';
+  }
+}
+
+function toggleLanguage() {
+  const newLang = currentLang === "th" ? "en" : "th";
+  setLanguage(newLang);
+  const el = document.getElementById("current-lang-text");
+  if (el) el.innerText = newLang.toUpperCase();
 }
